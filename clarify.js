@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const decodeHex = require("./steps/decode-hex");
+const executeSimpleCalcs = require("./steps/execute-simple-calcs");
 
 const inputFile = process.argv[2];
 
@@ -12,7 +13,10 @@ if (!inputFile) {
 
 const filePath = path.resolve(__dirname, "captchas", inputFile);
 
-steps = [{ name: "decode-hex", action: decodeHex }];
+steps = [
+  { name: "decode-hex", action: decodeHex },
+  { name: "execute-simple-calcs", action: executeSimpleCalcs },
+];
 
 fs.readFile(filePath, "utf8", (err, data) => {
   if (err) {
@@ -36,7 +40,7 @@ fs.readFile(filePath, "utf8", (err, data) => {
     data = temp_data;
   }
 
-  const resFilePath = path.join(__dirname, "results", inputFile);
+  const resFilePath = path.join(__dirname, "results", `res-${inputFile}`);
   fs.writeFileSync(resFilePath, data, "utf8");
-  console.log(`Wrote result to ${resFilePath}`);
+  console.log(`Wrote result to res-${resFilePath}`);
 });
