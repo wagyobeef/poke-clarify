@@ -1,7 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const decodeHex = require("./steps/decode-hex");
-const executeSimpleCalcs = require("./steps/execute-simple-calcs");
+const executeSimpleFuncs = require("./steps/execute-simple-funcs");
+const executeCustomFuncs = require("./steps/execute-custom-funcs");
+const replaceCharCodes = require("./steps/replace-char-codes");
+const concatChars = require("./steps/concat-chars");
+const executeComplexCalcs = require("./steps/execute-complex-calcs");
 
 const inputFile = process.argv[2];
 
@@ -15,7 +19,11 @@ const filePath = path.resolve(__dirname, "captchas", inputFile);
 
 steps = [
   { name: "decode-hex", action: decodeHex },
-  { name: "execute-simple-calcs", action: executeSimpleCalcs },
+  { name: "execute-simple-calcs", action: executeSimpleFuncs },
+  { name: "execute-custom-calcs", action: executeCustomFuncs },
+  { name: "replace-char-codes", action: replaceCharCodes },
+  { name: "concat-chars", action: concatChars },
+  { name: "execute-complex-calcs", action: executeComplexCalcs },
 ];
 
 fs.readFile(filePath, "utf8", (err, data) => {

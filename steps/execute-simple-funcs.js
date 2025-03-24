@@ -1,11 +1,10 @@
-const vm = require("vm");
 const functionNames = require("./utils/calc-funcs");
 
 function findFunctionDefinitions(code) {
   const functions = {};
 
   for (const name of functionNames) {
-    console.log(`🔍 Looking for function '${name}'`);
+    // console.log(`🔍 Looking for function '${name}'`);
 
     // Basic function definition regex: function name(e, t) { ... }
     const fnRegex = new RegExp(
@@ -22,10 +21,10 @@ function findFunctionDefinitions(code) {
           body
         );
         functions[name] = { fn, raw: fullFn };
-        console.log(`✅ Parsed function: ${name}`);
-        console.log(
-          `----- Function ${name} -----\n${fullFn}\n----------------------------`
-        );
+        // console.log(`✅ Parsed function: ${name}`);
+        // console.log(
+        //   `----- Function ${name} -----\n${fullFn}\n----------------------------`
+        // );
       } catch (err) {
         console.warn(
           `⚠️ Skipping function '${name}' due to eval error:`,
@@ -68,7 +67,7 @@ function replaceFunctionCalls(code, functions) {
   return updatedCode;
 }
 
-module.exports = function executeCalcFuncs(code) {
+module.exports = function executeSimpleFuncs(code) {
   const { code: withFunctions, functions } = findFunctionDefinitions(code);
   const replaced = replaceFunctionCalls(withFunctions, functions);
   return replaced;
