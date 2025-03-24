@@ -3,32 +3,42 @@ const vm = require("vm");
 // 🧠 Define the complex functions we want to replace with necessary global vars
 const complexFuncs = [
   { function: "atob_i", extra_vars: ["special_u"] },
+  { function: "complex_r", extra_vars: ["special_M"] },
   // Add more like { function: "myFunc", extra_vars: ["globalArr"] }
 ];
 
-// 🔐 Utility to escape variable names in regex
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// 🔍 Extracts a global array from the code
-function extractGlobalArray(code, varName) {
-  const arrayRegex = new RegExp(
-    `${escapeRegex(varName)}\\s*=\\s*\\[([\s\S]*?)\\]`,
-    "m"
-  );
-  const match = code.match(arrayRegex);
-  if (!match) {
+function extractGlobalArray(code, varName, context) {
+  const startIndex = code.indexOf(`${varName} = [`);
+  if (startIndex === -1) {
     console.warn(`❌ Global array '${varName}' not found.`);
     return null;
   }
 
+  let i = code.indexOf("[", startIndex);
+  if (i === -1) return null;
+
+  let bracketCount = 1;
+  let endIndex = i + 1;
+
+  while (endIndex < code.length && bracketCount > 0) {
+    if (code[endIndex] === "[") bracketCount++;
+    else if (code[endIndex] === "]") bracketCount--;
+    endIndex++;
+  }
+
+  if (bracketCount !== 0) {
+    console.warn(`❌ Bracket mismatch for array '${varName}'`);
+    return null;
+  }
+
+  const arrayContent = code.slice(i + 1, endIndex - 1);
+
   try {
-    const literal = `[${match[1]}]`;
-    const evaluated = vm.runInNewContext(literal);
-    console.log(
-      `✅ Resolved array '${varName}' with ${evaluated.length} elements`
-    );
+    const evaluated = vm.runInContext(`[${arrayContent}]`, context);
+    context[varName] = evaluated;
+    // console.log(
+    //   `✅ Resolved array '${varName}' with ${evaluated.length} elements`
+    // );
     return evaluated;
   } catch (e) {
     console.warn(`⚠️ Failed to evaluate array '${varName}':`, e.message);
@@ -37,7 +47,7 @@ function extractGlobalArray(code, varName) {
 }
 
 // Step 2: Locate the full function body by counting braces
-function extractFunction(code, name) {
+function extractFunctionInContext(code, name, context) {
   const startIndex = code.indexOf(`function ${name}`);
   if (startIndex === -1) {
     console.warn(`❌ Function '${name}' not found.`);
@@ -47,7 +57,7 @@ function extractFunction(code, name) {
   let braceCount = 0;
   let i = code.indexOf("{", startIndex);
   if (i === -1) return null;
-  const funcStart = i;
+
   i++;
 
   while (i < code.length) {
@@ -55,21 +65,16 @@ function extractFunction(code, name) {
     else if (code[i] === "}") {
       if (braceCount === 0) {
         const fullFn = code.slice(startIndex, i + 1);
-        const headerMatch = fullFn.match(/function\s+\w+\s*\(([^)]*)\)/);
-        const paramList = headerMatch
-          ? headerMatch[1].split(",").map((s) => s.trim())
-          : [];
-        const body = fullFn.slice(
-          fullFn.indexOf("{") + 1,
-          fullFn.lastIndexOf("}")
-        );
 
         try {
-          const fn = new Function(...paramList, body);
-          console.log(`✅ Parsed function '${name}'`);
-          return fn;
+          // Inject into VM context so function has access to vars
+          vm.runInContext(fullFn, context);
+          //   console.log(`✅ Parsed and injected function '${name}'`);
+
+          // Get reference to the function now inside the context
+          return context[name];
         } catch (e) {
-          console.warn(`⚠️ Error evaluating '${name}': ${e.message}`);
+          console.warn(`⚠️ Failed to evaluate function '${name}':`, e.message);
           return null;
         }
       } else {
@@ -83,51 +88,69 @@ function extractFunction(code, name) {
   return null;
 }
 
-// 🔁 Replace callsites in the HTML
-function replaceCallsites(code, fnName, fnRef, contextVars) {
+function replaceCallsites(code, fnName, fnRef, context) {
   const callRegex = new RegExp(
-    `(?<![\w$])${escapeRegex(fnName)}\\((\\d+)\\)`,
+    `(?<![\\w$])${fnName}\\((\\s*[-+]?\\d+(\\s*,\\s*[-+]?\\d+)*\\s*)\\)`,
     "g"
   );
 
-  return code.replace(callRegex, (match, index) => {
+  const matches = [...code.matchAll(callRegex)];
+  console.log(`🔍 Found ${matches.length} callsites for '${fnName}'`);
+
+  let count = 0;
+
+  const updatedCode = code.replace(callRegex, (match, indexStr) => {
+    const index = parseInt(indexStr, 10);
+
     try {
-      const context = vm.createContext(contextVars);
-      const result = fnRef.call(context, parseInt(index));
-      return JSON.stringify(result);
+      const result = fnRef.call(context, index);
+
+      if (typeof result === "string" || typeof result === "number") {
+        const replaced = JSON.stringify(result);
+        // console.log(`🔁 Replaced ${match} → ${replaced}`);
+        count++;
+        return replaced;
+      }
     } catch (e) {
       console.warn(`⚠️ Failed to execute ${fnName}(${index}):`, e.message);
-      return match;
     }
+
+    return match; // fallback
   });
+
+  console.log(`✅ Total callsites replaced for '${fnName}': ${count}`);
+  return updatedCode;
 }
 
 // 🧩 Main function
 module.exports = function executeComplexCalcs(code) {
   for (const entry of complexFuncs) {
     const { function: fnName, extra_vars } = entry;
+    const context = vm.createContext({
+      atob: (str) => Buffer.from(str, "base64").toString("binary"),
+    });
 
-    const fn = extractFunction(code, fnName);
-    if (!fn) continue;
-
-    const contextVars = {};
     let allResolved = true;
-
     for (const varName of extra_vars) {
-      const val = extractGlobalArray(code, varName);
+      const val = extractGlobalArray(code, varName, context);
       if (!val) {
         allResolved = false;
         break;
       }
-      contextVars[varName] = val;
     }
 
     if (!allResolved) {
-      console.warn(`❌ Skipping ${fnName} due to unresolved globals.`);
+      console.warn(`❌ Skipping '${fnName}' due to unresolved globals.`);
       continue;
     }
 
-    code = replaceCallsites(code, fnName, fn, contextVars);
+    const fn = extractFunctionInContext(code, fnName, context);
+    if (!fn) {
+      console.warn(`❌ Skipping '${fnName}' due to function eval failure.`);
+      continue;
+    }
+
+    code = replaceCallsites(code, fnName, fn, context);
   }
 
   return code;

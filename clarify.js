@@ -6,6 +6,8 @@ const executeCustomFuncs = require("./steps/execute-custom-funcs");
 const replaceCharCodes = require("./steps/replace-char-codes");
 const concatChars = require("./steps/concat-chars");
 const executeComplexCalcs = require("./steps/execute-complex-calcs");
+const replaceRefArray = require("./steps/replace-ref-array");
+const computeWindowMaths = require("./steps/compute-window-maths");
 
 const inputFile = process.argv[2];
 
@@ -23,6 +25,10 @@ steps = [
   { name: "execute-custom-calcs", action: executeCustomFuncs },
   { name: "replace-char-codes", action: replaceCharCodes },
   { name: "concat-chars", action: concatChars },
+  { name: "execute-complex-calcs", action: executeComplexCalcs },
+  { name: "execute-simple-calcs", action: executeSimpleFuncs },
+  { name: "replace-ref-array", action: replaceRefArray },
+  { name: "compute-window-maths", action: computeWindowMaths },
   { name: "execute-complex-calcs", action: executeComplexCalcs },
 ];
 

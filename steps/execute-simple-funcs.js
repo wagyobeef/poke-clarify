@@ -1,4 +1,4 @@
-const functionNames = require("./utils/calc-funcs");
+const functionNames = require("./utils/simple-calc-funcs");
 
 function findFunctionDefinitions(code) {
   const functions = {};
